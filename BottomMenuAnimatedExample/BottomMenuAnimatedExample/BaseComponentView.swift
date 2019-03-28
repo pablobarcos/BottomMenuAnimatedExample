@@ -27,7 +27,6 @@ class BaseComponentView: UIView, BaseComponentViewProtocol {
     private var viewConstraints = [NSLayoutConstraint]()
     private var componentErrorParentView: UIView?
     
-    //MARK: BaseComponentViewProtocol
     func componentViewDidLoad() {
         viewConstraints = self.constraints
     }

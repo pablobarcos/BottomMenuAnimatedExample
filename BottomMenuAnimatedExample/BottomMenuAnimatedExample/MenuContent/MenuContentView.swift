@@ -11,30 +11,8 @@ import UIKit
 
 @IBDesignable class MenuContentView: BaseComponentView {
     
-    
     override func componentViewDidLoad() {
         super.componentViewDidLoad()
-      
-        
-        updateUI()
-        updateStrings()
-        checkConstraints()
-    }
-    
-}
-
-// MARK: - LocalsViewInterfaceProtocol
-extension MenuContentView {
-    
-    func updateUI() {
-        
-    }
-    
-    func updateStrings() {
-        
-    }
-    
-    func checkConstraints() {
         
     }
     

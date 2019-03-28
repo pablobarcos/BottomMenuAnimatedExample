@@ -25,15 +25,9 @@ extension State {
 }
 
 class BottomMenu {
-    
-    //static let sharedInstance = BottomMenu()
-    
-    var view: UIView
-    
+
     private let menuOffset: CGFloat = 440
     private var bottomConstraint = NSLayoutConstraint()
-    
-    
     // MARK: - Animation
     
     /// The current state of the animation. This variable is changed only when an animation completes.
@@ -44,6 +38,7 @@ class BottomMenu {
     
     /// The progress of each animator. This array is parallel to the `runningAnimators` array.
     private var animationProgress = [CGFloat]()
+    var view: UIView
     
     init(view: UIView) {
         self.view = view
@@ -101,7 +96,6 @@ class BottomMenu {
     }()
     
     func layout() {
-        
         
         overlayView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(overlayView)
@@ -182,27 +176,25 @@ class BottomMenu {
             
             // update the state
             switch position {
-            case .start:
-                self.currentState = state.opposite
-            case .end:
-                self.currentState = state
-            case .current:
-                ()
-            @unknown default:
-                break
+                case .start:
+                    self.currentState = state.opposite
+                case .end:
+                    self.currentState = state
+                case .current:
+                    ()
+                @unknown default:
+                    break
             }
             
             // manually reset the constraint positions
             switch self.currentState {
-            case .open:
-                self.bottomConstraint.constant = 0
-            case .closed:
-                self.bottomConstraint.constant = self.menuOffset
+                case .open:
+                    self.bottomConstraint.constant = 0
+                case .closed:
+                    self.bottomConstraint.constant = self.menuOffset
             }
-            
             // remove all running animators
             self.runningAnimators.removeAll()
-            
         }
         
         // an animator for the title that is transitioning into view
@@ -236,68 +228,61 @@ class BottomMenu {
         runningAnimators.append(transitionAnimator)
         runningAnimators.append(inTitleAnimator)
         runningAnimators.append(outTitleAnimator)
-        
     }
     
     @objc private func menuViewPanned(recognizer: UIPanGestureRecognizer) {
         switch recognizer.state {
-        case .began:
+            case .began:
+                // start the animations
+                animateTransitionIfNeeded(to: currentState.opposite, duration: 1)
+                
+                // pause all animations, since the next event may be a pan changed
+                runningAnimators.forEach { $0.pauseAnimation() }
+                
+                // keep track of each animator's progress
+                animationProgress = runningAnimators.map { $0.fractionComplete }
             
-            // start the animations
-            animateTransitionIfNeeded(to: currentState.opposite, duration: 1)
+            case .changed:
+                // variable setup
+                let translation = recognizer.translation(in: menuView)
+                var fraction = -translation.y / menuOffset
+                
+                // adjust the fraction for the current state and reversed state
+                if currentState == .open { fraction *= -1 }
+                if runningAnimators[0].isReversed { fraction *= -1 }
+                
+                // apply the new fraction
+                for (index, animator) in runningAnimators.enumerated() {
+                    animator.fractionComplete = fraction + animationProgress[index]
+                }
             
-            // pause all animations, since the next event may be a pan changed
-            runningAnimators.forEach { $0.pauseAnimation() }
-            
-            // keep track of each animator's progress
-            animationProgress = runningAnimators.map { $0.fractionComplete }
-            
-        case .changed:
-            
-            // variable setup
-            let translation = recognizer.translation(in: menuView)
-            var fraction = -translation.y / menuOffset
-            
-            // adjust the fraction for the current state and reversed state
-            if currentState == .open { fraction *= -1 }
-            if runningAnimators[0].isReversed { fraction *= -1 }
-            
-            // apply the new fraction
-            for (index, animator) in runningAnimators.enumerated() {
-                animator.fractionComplete = fraction + animationProgress[index]
-            }
-            
-        case .ended:
-            
-            // variable setup
-            let yVelocity = recognizer.velocity(in: menuView).y
-            let shouldClose = yVelocity > 0
-            
-            // if there is no motion, continue all animations and exit early
-            if yVelocity == 0 {
+            case .ended:
+                // variable setup
+                let yVelocity = recognizer.velocity(in: menuView).y
+                let shouldClose = yVelocity > 0
+                
+                // if there is no motion, continue all animations and exit early
+                if yVelocity == 0 {
+                    runningAnimators.forEach { $0.continueAnimation(withTimingParameters: nil, durationFactor: 0) }
+                    break
+                }
+                // reverse the animations based on their current state and pan motion
+                switch currentState {
+                    case .open:
+                        if !shouldClose && !runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
+                        if shouldClose && runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
+                    case .closed:
+                        if shouldClose && !runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
+                        if !shouldClose && runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
+                }
+                // continue all animations
                 runningAnimators.forEach { $0.continueAnimation(withTimingParameters: nil, durationFactor: 0) }
-                break
-            }
             
-            // reverse the animations based on their current state and pan motion
-            switch currentState {
-            case .open:
-                if !shouldClose && !runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
-                if shouldClose && runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
-            case .closed:
-                if shouldClose && !runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
-                if !shouldClose && runningAnimators[0].isReversed { runningAnimators.forEach { $0.isReversed = !$0.isReversed } }
-            }
-            
-            // continue all animations
-            runningAnimators.forEach { $0.continueAnimation(withTimingParameters: nil, durationFactor: 0) }
-            
-        default:
-            ()
+            default:
+                ()
         }
     }
 }
-
 // MARK: - InstantPanGestureRecognizer
 
 /// A pan gesture that enters into the `began` state on touch down instead of waiting for a touches moved event.
@@ -308,6 +293,5 @@ class InstantPanGestureRecognizer: UIPanGestureRecognizer {
         super.touchesBegan(touches, with: event)
         self.state = UIGestureRecognizer.State.began
     }
-    
 }
 
